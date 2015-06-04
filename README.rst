@@ -46,8 +46,12 @@ Edit your settings.py file::
 	)
 
 	PUSH_NOTIFICATIONS_SETTINGS = {
-		"GCM_API_KEY": "<your api key>",
-		"APNS_CERTIFICATE": "/path/to/your/certificate.pem",
+		"default" : {
+			"GCM_API_KEY": "<your api key>",
+			"APNS_CERTIFICATE": "/path/to/your/certificate.pem",
+		},
+
+		...
 	}
 
 Note: If you are planning on running your project with `DEBUG=True`, then make sure you have set the

@@ -88,10 +88,10 @@ class APNSDevice(Device):
 	class Meta:
 		verbose_name = _("APNS device")
 
-	def send_message(self, message, **kwargs):
+	def send_message(self, message,settings_key='default', **kwargs):
 		from .apns import apns_send_message
 
-		return apns_send_message(registration_id=self.registration_id, alert=message, **kwargs)
+		return apns_send_message(registration_id=self.registration_id, alert=message,settings_key=settings_key, **kwargs)
 
 
 # This is an APNS-only function right now, but maybe GCM will implement it

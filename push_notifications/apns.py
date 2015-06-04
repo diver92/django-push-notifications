@@ -31,7 +31,7 @@ class APNSDataOverflow(APNSError):
     pass
 
 
-def _apns_create_socket(settings=SETTINGS, feedback=False):
+def _apns_create_socket(settings=SETTINGS['default'], feedback=False):
     certfile = settings.get("APNS_CERTIFICATE")
 
     if feedback:
@@ -57,11 +57,11 @@ def _apns_create_socket(settings=SETTINGS, feedback=False):
     return sock
 
 
-def _apns_create_socket_to_push(settings=SETTINGS):
+def _apns_create_socket_to_push(settings=SETTINGS["default"]):
     return _apns_create_socket(settings,feedback=False)
 
 
-def _apns_create_socket_to_feedback(settings=SETTINGS):
+def _apns_create_socket_to_feedback(settings=SETTINGS["default"]):
     return _apns_create_socket(settings, feedback=True)
 
 
@@ -82,8 +82,8 @@ def _apns_pack_frame(token_hex, payload, identifier, expiration, priority):
     return frame
 
 
-def _apns_check_errors(sock):
-    timeout = SETTINGS["APNS_ERROR_TIMEOUT"]
+def _apns_check_errors(sock, settings=SETTINGS["default"]):
+    timeout = settings["APNS_ERROR_TIMEOUT"]
     if timeout is None:
         return  # assume everything went fine!
     saved_timeout = sock.gettimeout()
@@ -107,7 +107,7 @@ def _apns_check_errors(sock):
 
 def _apns_send(token, alert, badge=None, sound=None, category=None, content_available=False,
                action_loc_key=None, loc_key=None, loc_args=[], extra={}, identifier=0,
-               expiration=None, priority=10, socket=None, settings=SETTINGS):
+               expiration=None, priority=10, socket=None, settings=SETTINGS["default"]):
     data = {}
     aps_data = {}
 
@@ -141,7 +141,7 @@ def _apns_send(token, alert, badge=None, sound=None, category=None, content_avai
     # convert to json, avoiding unnecessary whitespace with separators (keys sorted for tests)
     json_data = json.dumps(data, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
-    max_size = SETTINGS["APNS_MAX_NOTIFICATION_SIZE"]
+    max_size = settings["APNS_MAX_NOTIFICATION_SIZE"]
     if len(json_data) > max_size:
         raise APNSDataOverflow("Notification body cannot exceed %i bytes" % (max_size))
 
@@ -197,7 +197,7 @@ def _apns_receive_feedback(socket):
     return expired_token_list
 
 
-def apns_send_message(registration_id, alert, **kwargs):
+def apns_send_message(registration_id, alert, settings_key='default', **kwargs):
     """
 	Sends an APNS notification to a single registration_id.
 	This will send the notification as form data.
@@ -208,11 +208,11 @@ def apns_send_message(registration_id, alert, **kwargs):
 	it won't be included in the notification. You will need to pass None
 	to this for silent notifications.
 	"""
+    settings = SETTINGS[settings_key]
+    _apns_send(registration_id, alert, settings=settings, **kwargs)
 
-    _apns_send(registration_id, alert, **kwargs)
 
-
-def apns_send_bulk_message(registration_ids, alert, **kwargs):
+def apns_send_bulk_message(registration_ids, alert, settings_key='default', **kwargs):
     """
 	Sends an APNS notification to one or more registration_ids.
 	The registration_ids argument needs to be a list.
@@ -220,11 +220,13 @@ def apns_send_bulk_message(registration_ids, alert, **kwargs):
 	Note that if set alert should always be a string. If it is not set,
 	it won't be included in the notification. You will need to pass None
 	to this for silent notifications.
+
 	"""
-    with closing(_apns_create_socket_to_push()) as socket:
+    settings = SETTINGS[settings_key]
+    with closing(_apns_create_socket_to_push(settings=settings)) as socket:
         for identifier, registration_id in enumerate(registration_ids):
-            _apns_send(registration_id, alert, identifier=identifier, socket=socket, **kwargs)
-        _apns_check_errors(socket)
+            _apns_send(registration_id, alert, identifier=identifier, socket=socket, settings=settings, **kwargs)
+        _apns_check_errors(socket, settings=settings)
 
 
 def apns_fetch_inactive_ids():
@@ -232,9 +234,11 @@ def apns_fetch_inactive_ids():
 	Queries the APNS server for id's that are no longer active since
 	the last fetch
 	"""
+
     inactive_ids = []
-    for key in SETTINGS:
-        settings=SETTINGS[key]
+    for key in SETTINGS.keys():
+        settings=SETTINGS.get(key)
+
         with closing(_apns_create_socket_to_feedback(settings=settings)) as socket:
             # Maybe we should have a flag to return the timestamp?
             # It doesn't seem that useful right now, though.
